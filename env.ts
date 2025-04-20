@@ -21,7 +21,7 @@ export const env = createEnv({
     ADMIN_PASSWORD: z.string(),
     JWT_SECRET: z.string(),
     SESSION_TAG: z.string(),
-    SESSION_DURATION: z.string(),
+    SESSION_DURATION: z.coerce.number().int().positive().default(2592000),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),

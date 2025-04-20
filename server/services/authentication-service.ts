@@ -1,21 +1,18 @@
 import { SignJWT, jwtVerify } from "jose"
 import { cookies } from "next/headers"
-import ms from "ms"
+import { env } from "@/env"
 
-const SESSION_TAG = process.env.SESSION_TAG || "0"
-const SESSION_DURATION = process.env.SESSION_DURATION || "7d" // 7 days
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD
+const SESSION_TAG = env.SESSION_TAG
+const SESSION_DURATION_SECONDS = env.SESSION_DURATION // Now a number in seconds
+const ADMIN_USERNAME = env.ADMIN_USERNAME
+const ADMIN_PASSWORD = env.ADMIN_PASSWORD
 
 if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
   throw new Error("ADMIN_USERNAME and ADMIN_PASSWORD must be set")
 }
 
 // Create a secret key for JWT signing
-const secretKey = new TextEncoder().encode(process.env.JWT_SECRET || "your-secret-key")
-
-// Convert duration string to milliseconds for cookie maxAge
-const sessionDurationMs = ms(SESSION_DURATION)
+const secretKey = new TextEncoder().encode(env.JWT_SECRET) // Use env.JWT_SECRET
 
 // Rate limiting configuration
 const MAX_FAILED_ATTEMPTS = 5
@@ -106,7 +103,7 @@ export async function login(username: string, password: string, ip: string) {
 
   const token = await new SignJWT({ username, tag: SESSION_TAG })
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime(SESSION_DURATION)
+    .setExpirationTime(`${SESSION_DURATION_SECONDS}s`) // Pass duration as string like '3600s'
     .sign(secretKey)
 
   cookies().set("auth_session", token, {
@@ -114,7 +111,7 @@ export async function login(username: string, password: string, ip: string) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: Math.floor(sessionDurationMs / 1000), // Convert ms to seconds
+    maxAge: SESSION_DURATION_SECONDS, // Use seconds directly
   })
 
   // Reset attempts on successful login

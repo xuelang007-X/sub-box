@@ -9,4 +9,4 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=your-secure-password
 JWT_SECRET=your-secret-key-should-be-very-long-and-random
 SESSION_TAG=0
-SESSION_DURATION=7d
+SESSION_DURATION=2592000
