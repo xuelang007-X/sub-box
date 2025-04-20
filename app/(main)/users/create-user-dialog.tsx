@@ -1,25 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { PlusCircle } from "lucide-react";
-
-import { PopupSheet } from "@/components/popup-sheet";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UserForm } from "./user-form";
+import { PlusCircle } from "lucide-react";
+import { type Subconverter } from "@/types";
 
-export function CreateUserDialog() {
+interface CreateUserDialogProps {
+  subconverters: Subconverter[];
+}
+
+export function CreateUserDialog({ subconverters }: CreateUserDialogProps) {
   const [open, setOpen] = useState(false);
 
   return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button size="sm" onClick={() => setOpen(true)}>
         <PlusCircle className="mr-2 h-4 w-4" />
-        创建用户
+        添加用户
       </Button>
-
-      <PopupSheet open={open} onOpenChange={setOpen} title="创建用户">
-        <UserForm onSuccess={() => setOpen(false)} />
-      </PopupSheet>
-    </>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>创建新用户</DialogTitle>
+        </DialogHeader>
+        <UserForm onSubmitSuccess={() => setOpen(false)} subconverters={subconverters} />
+      </DialogContent>
+    </Dialog>
   );
 }

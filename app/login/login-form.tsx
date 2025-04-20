@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { api } from "@/utils/api"
 
 export function LoginForm({
   className,
@@ -22,6 +23,17 @@ export function LoginForm({
 }: React.ComponentPropsWithoutRef<"div">) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  
+  // 使用TRPC登录mutation
+  const loginMutation = api.auth.login.useMutation({
+    onSuccess: () => {
+      router.push("/")
+      router.refresh()
+    },
+    onError: (error) => {
+      toast.error(error.message || "用户名或密码错误")
+    },
+  })
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -32,20 +44,7 @@ export function LoginForm({
     const password = formData.get("password") as string
 
     try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        body: JSON.stringify({ username, password }),
-        headers: { "Content-Type": "application/json" },
-      })
-
-      if (!res.ok) {
-        throw new Error("Login failed")
-      }
-
-      router.push("/")
-      router.refresh()
-    } catch (error) {
-      toast.error("用户名或密码错误")
+      await loginMutation.mutateAsync({ username, password })
     } finally {
       setIsLoading(false)
     }
@@ -70,7 +69,7 @@ export function LoginForm({
                   name="username"
                   type="text"
                   required
-                  disabled={isLoading}
+                  disabled={isLoading || loginMutation.isPending}
                 />
               </div>
               <div className="grid gap-2">
@@ -80,11 +79,11 @@ export function LoginForm({
                   name="password" 
                   type="password" 
                   required
-                  disabled={isLoading}
+                  disabled={isLoading || loginMutation.isPending}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "登录中..." : "登录"}
+              <Button type="submit" className="w-full" disabled={isLoading || loginMutation.isPending}>
+                {(isLoading || loginMutation.isPending) ? "登录中..." : "登录"}
               </Button>
             </div>
           </form>

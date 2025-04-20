@@ -62,7 +62,13 @@
     "@radix-ui/react-toggle-group": "^1.1.7",
     "@radix-ui/react-tooltip": "^1.2.3",
     "@t3-oss/env-nextjs": "^0.12.0",
+    "@tanstack/react-query": "^5.74.4",
+    "@tanstack/react-query-devtools": "^5.74.4",
     "@tanstack/react-table": "^8.21.3",
+    "@trpc/client": "^11.1.0",
+    "@trpc/next": "^11.1.0",
+    "@trpc/react-query": "^11.1.0",
+    "@trpc/server": "^11.1.0",
     "@types/ms": "^2.1.0",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
@@ -90,11 +96,12 @@
     "recharts": "2.15.0",
     "server-only": "latest",
     "sonner": "^1.7.4",
+    "superjson": "^2.2.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^0.9.9",
     "yaml": "^2.7.1",
-    "zod": "latest"
+    "zod": "^3.24.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250419.0",

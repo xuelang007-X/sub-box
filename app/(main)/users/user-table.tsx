@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -15,42 +15,49 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { type Node, type NodeClient, type User } from "@/types";
-import { deleteUser } from "./actions";
+import { type Node, type NodeClient, type User, type Subconverter } from "@/types";
 import { createColumns } from "./columns";
 import { UserForm } from "./user-form";
 import { UserNodeClientTable } from "./user-node-client-table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CreateUserDialog } from "./create-user-dialog";
+import { api } from "@/utils/api";
 
 interface UserTableProps {
   users: User[];
-  clients: (NodeClient & { users: { userId: string; enable: boolean; order: number }[] })[];
-  nodes: Node[];
+  subconverters: Subconverter[];
 }
 
-export function UserTable({ users, clients: items, nodes }: UserTableProps) {
+export function UserTable({ users, subconverters }: UserTableProps) {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [baseUrl, setBaseUrl] = useState("");
-  const [isPending, startTransition] = useTransition();
+  
+  // 使用TRPC获取所需数据
+  const { data: nodeClientsWithUsers = [] } = api.nodeClient.getNodeClientsWithUsers.useQuery();
+  const { data: nodes = [] } = api.node.getAll.useQuery();
+  
+  // 使用TRPC删除用户
+  const deleteUserMutation = api.user.delete.useMutation({
+    onSuccess: () => {
+      toast.success("用户删除成功");
+      setDeletingUser(null);
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
 
   useEffect(() => {
     setBaseUrl(window.location.origin);
   }, []);
 
   function onDelete(user: User) {
-    startTransition(async () => {
-      try {
-        await deleteUser(user.id);
-        toast("删除成功");
-        setDeletingUser(null);
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-    });
+    deleteUserMutation.mutate(user.id);
   }
 
   // Group items by user id
-  const itemsByUser = items.reduce(
+  const itemsByUser = nodeClientsWithUsers.reduce(
     (acc, item) => {
       for (const userOption of item.users) {
         const userId = userOption.userId;
@@ -61,7 +68,7 @@ export function UserTable({ users, clients: items, nodes }: UserTableProps) {
       }
       return acc;
     },
-    {} as Record<string, typeof items[number][]>
+    {} as Record<string, typeof nodeClientsWithUsers[number][]>
   );
 
   const columns = createColumns({
@@ -71,47 +78,55 @@ export function UserTable({ users, clients: items, nodes }: UserTableProps) {
   });
 
   return (
-    <>
-      <DataTable
-        columns={columns}
-        data={users}
-        expandedContent={(user) => (
-          <UserNodeClientTable userId={user.id} items={itemsByUser[user.id] || []} nodes={nodes} users={users} />
-        )}
-        expandedTitle={(user) => {
-          const count = itemsByUser[user.id]?.length || 0;
-          return `用户 ${user.name} 的客户端列表 (${count})`;
-        }}
-        enableColumnVisibility
-        enableGlobalSearch
-        getItemCount={(user) => itemsByUser[user.id]?.length || 0}
-      />
+    <Card>
+      <CardHeader className="flex flex-row items-center space-y-0 pb-4">
+        <div className="flex items-center gap-4">
+          <CardTitle>用户管理 ({users.length})</CardTitle>
+          <CreateUserDialog subconverters={subconverters} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <DataTable
+          columns={columns}
+          data={users}
+          expandedContent={(user) => (
+            <UserNodeClientTable userId={user.id} items={itemsByUser[user.id] || []} nodes={nodes} users={users} />
+          )}
+          expandedTitle={(user) => {
+            const count = itemsByUser[user.id]?.length || 0;
+            return `用户 ${user.name} 的客户端列表 (${count})`;
+          }}
+          enableColumnVisibility
+          enableGlobalSearch
+          getItemCount={(user) => itemsByUser[user.id]?.length || 0}
+        />
 
-      <PopupSheet open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)} title="编辑用户">
-        <UserForm user={editingUser ?? undefined} onSuccess={() => setEditingUser(null)} />
-      </PopupSheet>
+        <PopupSheet open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)} title="编辑用户">
+          <UserForm user={editingUser ?? undefined} subconverters={subconverters} onSubmitSuccess={() => setEditingUser(null)} />
+        </PopupSheet>
 
-      <AlertDialog open={Boolean(deletingUser)} onOpenChange={(open) => !open && setDeletingUser(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>确定要删除用户 {deletingUser?.name} 吗？此操作不可撤销。</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (deletingUser) {
-                  onDelete(deletingUser);
-                }
-              }}
-              disabled={isPending}
-            >
-              {isPending ? "删除中..." : "删除"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
+        <AlertDialog open={Boolean(deletingUser)} onOpenChange={(open) => !open && setDeletingUser(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认删除</AlertDialogTitle>
+              <AlertDialogDescription>确定要删除用户 {deletingUser?.name} 吗？此操作不可撤销。</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (deletingUser) {
+                    onDelete(deletingUser);
+                  }
+                }}
+                disabled={deleteUserMutation.isPending}
+              >
+                {deleteUserMutation.isPending ? "删除中..." : "删除"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </CardContent>
+    </Card>
   );
 }

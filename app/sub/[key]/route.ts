@@ -1,46 +1,25 @@
 import { NextResponse } from "next/server";
-
-import { subscriptionService } from "@/server/services/subscription-service";
-import { userService } from "@/server/services/user-service";
-import { clashConfigService } from "@/server/services/clash-config-service";
+import { createCaller } from "@/server/api/root";
+import { createTRPCContext } from "@/server/api/trpc";
 
 export async function GET(request: Request, { params }: { params: { key: string } }) {
   try {
-    // 1. 查找用户
-    const user = await userService.findBySubscriptionKey(params.key);
-    if (!user) {
-      return new NextResponse(
-        JSON.stringify({ error: "User not found" }),
-        {
-          status: 404,
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-          },
-        }
-      );
-    }
-
-    // 2. 生成订阅内容
-    const originalYaml = await subscriptionService.generateSubscription({
-      userId: user.id,
-      subconverterId: user.subconverterId,
-    });
-
-    // 3. 检查是否需要合并配置
     const url = new URL(request.url);
     const configKey = url.searchParams.get("config");
-    let finalYaml = originalYaml;
-
-    if (configKey) {
-      const config = await clashConfigService.getAll();
-      const targetConfig = config.find(c => c.key === configKey);
-      if (targetConfig) {
-        finalYaml = await clashConfigService.mergeConfig(originalYaml, targetConfig);
-      }
-    }
-
-    // 4. 返回最终的 YAML
-    return new NextResponse(finalYaml, {
+    const headers = new Headers(request.headers);
+    
+    // 创建TRPC上下文和调用器
+    const context = await createTRPCContext({ headers });
+    const caller = createCaller(context);
+    
+    // 使用TRPC调用获取订阅内容
+    const yaml = await caller.subscription.getSubscriptionByKey({
+      key: params.key,
+      configId: configKey || undefined,
+    });
+    
+    // 返回最终的YAML
+    return new NextResponse(yaml, {
       headers: {
         "Content-Type": "text/yaml; charset=utf-8",
       },
@@ -52,7 +31,7 @@ export async function GET(request: Request, { params }: { params: { key: string 
         error: error instanceof Error ? error.message : "Unknown error occurred",
       }),
       {
-        status: 500,
+        status: error instanceof Error && error.message.includes("not found") ? 404 : 500,
         headers: {
           "Content-Type": "application/json; charset=utf-8",
         },

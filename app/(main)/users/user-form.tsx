@@ -1,125 +1,101 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import * as z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { api } from "@/utils/api";
 import { type Subconverter, type User } from "@/types";
-import { createUser, getSubconverters, updateUser } from "./actions";
 
 const formSchema = z.object({
-  name: z.string().min(1, "名称不能为空"),
-  subscriptionKey: z
-    .string()
-    .min(6, "订阅密钥至少需要6位")
-    .regex(/^[a-zA-Z0-9]+$/, "订阅密钥只能包含字母和数字"),
-  subconverterId: z.string().nullable(),
+  name: z.string().min(1, "Name is required"),
+  subscriptionKey: z.string().min(1, "Subscription Key is required"),
+  subconverterId: z.string().nullable().optional(),
 });
 
-type FormData = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
 interface UserFormProps {
   user?: User;
-  onSuccess?: () => void;
+  subconverters: Subconverter[];
+  onSubmitSuccess?: () => void;
 }
 
-export function UserForm({ user, onSuccess }: UserFormProps) {
-  const [isPending, startTransition] = useTransition();
-  const [subconverters, setSubconverters] = useState<Subconverter[]>([]);
-
-  function generateSubscriptionKey() {
-    // 生成包含数字、小写字母和大写字母的8位密钥
-    const numbers = "0123456789";
-    const lowerCase = "abcdefghijklmnopqrstuvwxyz";
-    const upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const allChars = numbers + lowerCase + upperCase;
-
-    // 确保至少包含每种字符
-    let key = "";
-    key += numbers[Math.floor(Math.random() * numbers.length)];
-    key += lowerCase[Math.floor(Math.random() * lowerCase.length)];
-    key += upperCase[Math.floor(Math.random() * upperCase.length)];
-
-    // 随机填充剩余5位
-    for (let i = 0; i < 5; i++) {
-      key += allChars[Math.floor(Math.random() * allChars.length)];
-    }
-
-    // 打乱顺序
-    key = key
-      .split("")
-      .sort(() => Math.random() - 0.5)
-      .join("");
-
-    form.setValue("subscriptionKey", key);
-  }
-
-  useEffect(() => {
-    const loadData = async () => {
-      const subconvertersData = await getSubconverters();
-      setSubconverters(subconvertersData);
-    };
-    loadData();
-  }, []);
-
-  const form = useForm<FormData>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: user?.name ?? "",
-      subscriptionKey:
-        user?.subscriptionKey ??
-        (() => {
-          // 初始化时也使用相同的生成规则
-          const numbers = "0123456789";
-          const lowerCase = "abcdefghijklmnopqrstuvwxyz";
-          const upperCase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-          const allChars = numbers + lowerCase + upperCase;
-
-          let key = "";
-          key += numbers[Math.floor(Math.random() * numbers.length)];
-          key += lowerCase[Math.floor(Math.random() * lowerCase.length)];
-          key += upperCase[Math.floor(Math.random() * upperCase.length)];
-
-          for (let i = 0; i < 5; i++) {
-            key += allChars[Math.floor(Math.random() * allChars.length)];
-          }
-
-          return key
-            .split("")
-            .sort(() => Math.random() - 0.5)
-            .join("");
-        })(),
-      subconverterId: user?.subconverterId ?? null,
+export function UserForm({ user, subconverters, onSubmitSuccess }: UserFormProps) {
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 使用trpc mutations
+  const createUser = api.user.create.useMutation({
+    onSuccess: () => {
+      toast.success("用户创建成功");
+      router.refresh();
+      onSubmitSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+  
+  const updateUser = api.user.update.useMutation({
+    onSuccess: () => {
+      toast.success("用户更新成功");
+      router.refresh();
+      onSubmitSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
     },
   });
 
-  function onSubmit(data: FormData) {
-    startTransition(async () => {
-      try {
-        const submitData = {
-          ...data,
-          subscriptionKey: data.subscriptionKey,
-          subconverterId: data.subconverterId || null,
-        };
-        if (user) {
-          await updateUser(user.id, submitData);
-        } else {
-          await createUser(submitData);
-        }
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: user?.name || "",
+      subscriptionKey: user?.subscriptionKey || "",
+      subconverterId: user?.subconverterId || null,
+    },
+  });
 
-        toast("保存成功");
-
-        onSuccess?.();
-      } catch (error) {
-        toast.error((error as Error).message);
+  async function onSubmit(values: FormValues) {
+    setIsSubmitting(true);
+    try {
+      if (user) {
+        // 更新用户
+        await updateUser.mutateAsync({
+          id: user.id,
+          data: values,
+        });
+      } else {
+        // 创建新用户
+        await createUser.mutateAsync(values);
       }
-    });
+    } catch (error) {
+      // 错误在mutation的onError中处理
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -130,10 +106,11 @@ export function UserForm({ user, onSuccess }: UserFormProps) {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>名称</FormLabel>
+              <FormLabel>用户名</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input placeholder="输入用户名称" {...field} />
               </FormControl>
+              <FormDescription>此名称仅用于标识用户，不是登录用户名</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -144,14 +121,10 @@ export function UserForm({ user, onSuccess }: UserFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>订阅密钥</FormLabel>
-              <div className="flex gap-2">
-                <FormControl>
-                  <Input {...field} placeholder="至少6位字母数字组合" />
-                </FormControl>
-                <Button type="button" variant="outline" onClick={generateSubscriptionKey}>
-                  生成
-                </Button>
-              </div>
+              <FormControl>
+                <Input placeholder="输入唯一的订阅密钥" {...field} />
+              </FormControl>
+              <FormDescription>用户订阅链接中的唯一标识</FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -161,31 +134,42 @@ export function UserForm({ user, onSuccess }: UserFormProps) {
           name="subconverterId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>订阅转换器</FormLabel>
-              <Select value={field.value || "none"} onValueChange={(value) => field.onChange(value === "none" ? null : value)}>
-                <FormControl>
-                  <SelectTrigger>
+              <FormLabel>使用的订阅转换器</FormLabel>
+              <FormControl>
+                <Select
+                  onValueChange={(value) => field.onChange(value || null)}
+                  value={field.value || ""}
+                >
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="选择订阅转换器" />
                   </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem key="none" value="none">
-                    无
-                  </SelectItem>
-                  {subconverters.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.url}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <SelectContent>
+                    <SelectItem value="">使用默认转换器</SelectItem>
+                    {subconverters.map((subconverter) => (
+                      <SelectItem key={subconverter.id} value={subconverter.id}>
+                        {subconverter.url}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormDescription>留空则使用默认转换器</FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "保存中..." : "保存"}
-        </Button>
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            disabled={isSubmitting || createUser.isPending || updateUser.isPending}
+          >
+            {isSubmitting || createUser.isPending || updateUser.isPending
+              ? "提交中..."
+              : user
+              ? "保存更改"
+              : "创建用户"}
+          </Button>
+        </div>
       </form>
     </Form>
   );

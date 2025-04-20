@@ -1,15 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { userService } from "@/server/services/user-service"
-import { nodeService } from "@/server/services/node-service"
-import { subconverterService } from "@/server/services/subconverter-service"
-import { clashConfigService } from "@/server/services/clash-config-service"
 import { UserList } from "./user-list"
+import { api } from "@/server/api/trpc-server"
 
 export default async function Home() {
-  const users = await userService.getAll()
-  const nodes = await nodeService.getAll()
-  const subconverters = await subconverterService.getAll()
-  const clashConfigs = await clashConfigService.getAll()
+  const users = await api.user.getAll()
+  const nodes = await api.node.getAll()
+  const subconverters = await api.subconverter.getAll()
+  const clashConfigs = await api.clashConfig.getAll()
 
   return (
     <div className="flex flex-1 flex-col gap-4">

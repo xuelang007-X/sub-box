@@ -1,52 +1,43 @@
-import { Inter } from "next/font/google";
-import { headers } from "next/headers";
-import { ThemeProvider } from "next-themes";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { cookies } from "next/headers";
+import { ReactNode } from "react";
 
-import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
+import { TRPCProvider } from "@/providers/trpc-provider";
 
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta-sans",
+});
 
 // Add metadata export
 export const metadata = {
-  title: "Sub Box - 订阅管理系统",
-  description: "简单高效的订阅管理工具",
-  icons: {
-    icon: [
-      {
-        url: "/favicon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-  },
+  title: "Sub Box",
+  description: "Your subscription management platform",
 };
 
-function getStoredTheme(): string {
-  try {
-    const headersList = headers();
-    const cookie = headersList.get("cookie") ?? "";
-    if (!cookie) return "system";
-
-    const themeMatch = cookie.match(/theme=([^;]+)/);
-    return themeMatch?.[1] ?? "system";
-  } catch {
-    return "system";
-  }
+interface RootLayoutProps {
+  children: ReactNode;
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const defaultTheme = getStoredTheme();
+export default function RootLayout({ children }: RootLayoutProps) {
+  const cookieStore = cookies();
+  const theme = cookieStore.get("theme");
+  const defaultTheme = theme?.value || "dark";
 
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <body className={cn(inter.className, "min-h-screen")}>
         <ThemeProvider attribute="class" defaultTheme={defaultTheme} enableSystem disableTransitionOnChange>
-          {children}
-          <Toaster />
+          <TRPCProvider>
+            {children}
+            <Toaster />
+          </TRPCProvider>
         </ThemeProvider>
       </body>
     </html>

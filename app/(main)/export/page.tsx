@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ExportData } from "@/server/services/export-service";
+import { api } from "@/utils/api";
 
 export default function ExportPage() {
   const [importing, setImporting] = useState(false);
@@ -25,16 +26,33 @@ export default function ExportPage() {
   const [previewData, setPreviewData] = useState<ExportData | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
+  // 使用TRPC mutations
+  const exportQuery = api.export.exportAll.useQuery(undefined, { enabled: false });
+  const importMutation = api.export.importAll.useMutation({
+    onSuccess: () => {
+      toast.success("数据导入成功");
+      setShowPreview(false);
+      setPreviewData(null);
+    },
+    onError: (error) => {
+      toast.error(`导入失败: ${error.message}`);
+    },
+  });
+
   const handleExport = async () => {
     try {
       setExporting(true);
-      const response = await fetch("/api/export");
-      if (!response.ok) {
-        throw new Error("导出失败");
-      }
-      const data = await response.json();
+      const data = await exportQuery.refetch();
       
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      if (data.error) {
+        throw new Error(data.error.message);
+      }
+      
+      if (!data.data) {
+        throw new Error("无法获取导出数据");
+      }
+      
+      const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: "application/json" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -99,29 +117,12 @@ export default function ExportPage() {
 
     try {
       setImporting(true);
-      const response = await fetch("/api/export", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      await importMutation.mutateAsync({
+        data: previewData,
+        options: {
+          skipExisting,
         },
-        body: JSON.stringify({
-          data: previewData,
-          options: {
-            skipExisting,
-          },
-        }),
       });
-
-      if (!response.ok) {
-        throw new Error("导入失败");
-      }
-
-      toast.success("数据导入成功");
-      setShowPreview(false);
-      setPreviewData(null);
-    } catch (error) {
-      console.error("Import failed:", error);
-      toast.error("导入失败，请重试");
     } finally {
       setImporting(false);
     }
@@ -141,10 +142,10 @@ export default function ExportPage() {
         <CardContent>
           <Button 
             onClick={handleExport} 
-            disabled={exporting}
+            disabled={exporting || exportQuery.isFetching}
             className="w-full sm:w-auto"
           >
-            {exporting ? "导出中..." : "导出数据"}
+            {exporting || exportQuery.isFetching ? "导出中..." : "导出数据"}
           </Button>
         </CardContent>
       </Card>
@@ -181,19 +182,19 @@ export default function ExportPage() {
                 type="file"
                 accept=".json"
                 onChange={handleFileSelect}
-                disabled={importing}
+                disabled={importing || importMutation.isPending}
                 className="hidden"
                 id="import-file"
               />
               <Button
                 asChild
                 variant="outline"
-                disabled={importing}
+                disabled={importing || importMutation.isPending}
                 className="w-full sm:w-auto"
               >
                 <label htmlFor="import-file" className="cursor-pointer">
                   <FileJson className="mr-2 h-4 w-4" />
-                  {importing ? "导入中..." : "选择导入文件"}
+                  {importing || importMutation.isPending ? "导入中..." : "选择导入文件"}
                 </label>
               </Button>
             </div>
@@ -211,27 +212,19 @@ export default function ExportPage() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* <div className="space-y-4">
-            <div className="rounded-md bg-muted p-4">
-              <pre className="text-sm whitespace-pre-wrap max-h-[300px] overflow-auto">
-                {previewData && JSON.stringify(previewData, null, 2)}
-              </pre>
-            </div>
-          </div> */}
-
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowPreview(false)}
-              disabled={importing}
+              disabled={importing || importMutation.isPending}
             >
               取消
             </Button>
             <Button 
               onClick={handleImport}
-              disabled={importing}
+              disabled={importing || importMutation.isPending}
             >
-              {importing ? "导入中..." : "确认导入"}
+              {importing || importMutation.isPending ? "导入中..." : "确认导入"}
             </Button>
           </DialogFooter>
         </DialogContent>
