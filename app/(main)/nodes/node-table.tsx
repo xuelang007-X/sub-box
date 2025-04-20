@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -16,10 +16,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { type Node, type NodeClient, type User } from "@/types";
-import { deleteNode } from "./actions";
 import { createColumns } from "./columns";
 import { NodeForm } from "./node-form";
 import { NodeClientTable } from "./node-client-table";
+import { api } from "@/utils/api";
 
 interface NodeWithItems extends Node {
   items: (NodeClient & { users: { userId: string; enable: boolean; order: number }[] })[];
@@ -33,20 +33,20 @@ interface NodeTableProps {
 export function NodeTable({ nodes, users }: NodeTableProps) {
   const [editingItem, setEditingItem] = useState<NodeWithItems | null>(null);
   const [deletingItem, setDeletingItem] = useState<NodeWithItems | null>(null);
-  const [isPending, startTransition] = useTransition();
+  
+  // 使用TRPC删除节点
+  const deleteNodeMutation = api.node.delete.useMutation({
+    onSuccess: () => {
+      toast.success("节点删除成功");
+      setDeletingItem(null);
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
 
   function onDelete(item: NodeWithItems) {
-    startTransition(async () => {
-      try {
-        await deleteNode(item.id);
-        toast("删除成功");
-        setDeletingItem(null);
-      } catch (error) {
-        toast("删除失败", {
-          description: (error as Error).message,
-        });
-      }
-    });
+    deleteNodeMutation.mutate(item.id);
   }
 
   const columns = createColumns({
@@ -76,7 +76,7 @@ export function NodeTable({ nodes, users }: NodeTableProps) {
       />
 
       <PopupSheet open={Boolean(editingItem)} onOpenChange={(open) => !open && setEditingItem(null)} title="编辑节点">
-        <NodeForm node={editingItem ?? undefined} onSuccess={() => setEditingItem(null)} />
+        <NodeForm node={editingItem ?? undefined} onSubmitSuccess={() => setEditingItem(null)} />
       </PopupSheet>
 
       <AlertDialog open={Boolean(deletingItem)} onOpenChange={(open) => !open && setDeletingItem(null)}>
@@ -93,9 +93,9 @@ export function NodeTable({ nodes, users }: NodeTableProps) {
                   onDelete(deletingItem);
                 }
               }}
-              disabled={isPending}
+              disabled={deleteNodeMutation.isPending}
             >
-              {isPending ? "删除中..." : "删除"}
+              {deleteNodeMutation.isPending ? "删除中..." : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

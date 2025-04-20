@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { getUser } from "@/server/services/authentication-service"
+import { api } from "@/server/api/trpc-server"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import {
@@ -15,7 +15,7 @@ export default async function MainLayout({
 }: {
   children: React.ReactNode
 }) {
-  const user = await getUser()
+  const user = await api.auth.getUser();
   if (!user) {
     redirect("/login")
   }

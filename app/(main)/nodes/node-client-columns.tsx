@@ -9,9 +9,11 @@ import { DataTableColumnHeader } from "@/components/data-table/data-table-column
 import { IdBadge } from "@/components/id-badge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { type Node, type NodeClient, type User } from "@/types";
+import { type NodeClient, type User } from "@/types";
 
-type NodeClientWithUsers = NodeClient & { users: { userId: string; enable: boolean; order: number }[] };
+interface NodeClientWithUsers extends NodeClient {
+  users: { userId: string; enable: boolean; order: number }[];
+}
 
 interface NodeClientActionsProps {
   client: NodeClientWithUsers;
@@ -35,13 +37,14 @@ function NodeClientActions({ client, onEdit, onDelete }: NodeClientActionsProps)
 }
 
 interface CreateColumnsOptions {
-  nodes: Node[];
-  users: User[];
   onEdit: (client: NodeClientWithUsers) => void;
   onDelete: (client: NodeClientWithUsers) => void;
+  users?: User[];
 }
 
-export function createColumns({ nodes: _, users, onEdit, onDelete }: CreateColumnsOptions): ColumnDef<NodeClientWithUsers>[] {
+export function createColumns({ onEdit, onDelete, users = [] }: CreateColumnsOptions): ColumnDef<NodeClientWithUsers>[] {
+  const userMap = new Map(users.map(user => [user.id, user]));
+  
   return [
     {
       accessorKey: "id",
@@ -52,16 +55,16 @@ export function createColumns({ nodes: _, users, onEdit, onDelete }: CreateColum
       },
     },
     {
-      accessorKey: "users",
+      id: "usersList",
+      accessorFn: (row) => row.users,
       header: ({ column }) => <DataTableColumnHeader column={column} title="用户" />,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.users.map((userOption) => {
-            const user = users.find((u) => u.id === userOption.userId);
-            if (!user) return null;
+            const user = userMap.get(userOption.userId);
             return (
-              <Badge key={user.id} variant={userOption.enable ? "default" : "outline"}>
-                {user.name}
+              <Badge key={userOption.userId} variant={userOption.enable ? "default" : "outline"}>
+                {user?.name || userOption.userId}
                 {!userOption.enable && <span className="ml-1">(已禁用)</span>}
               </Badge>
             );

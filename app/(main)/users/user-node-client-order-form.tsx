@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { type Node as DbNode, type NodeClient } from "@/types";
-import { updateUserClientOption } from "./actions";
+import { api } from "@/utils/api";
 
 type NodeClientWithUsers = NodeClient & { users: { userId: string; enable: boolean; order: number }[] };
 
@@ -54,7 +55,18 @@ interface UserNodeClientOrderFormProps {
 }
 
 export function UserNodeClientOrderForm({ userId, items, nodes, onSuccess }: UserNodeClientOrderFormProps) {
-  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  
+  // 使用TRPC mutation
+  const updateUserClientOptionMutation = api.nodeClient.updateUserClientOption.useMutation({
+    onSuccess: () => {
+      // 成功处理在handleSave中统一处理
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+  
   const [localItems, setLocalItems] = useState(
     [...items].sort((a, b) => {
       const aUserOption = a.users.find((user) => user.userId === userId);
@@ -71,25 +83,26 @@ export function UserNodeClientOrderForm({ userId, items, nodes, onSuccess }: Use
   );
 
   async function handleSave() {
-    startTransition(async () => {
-      try {
-        await Promise.all(
-          localItems.map((item, index) => {
-            const userOption = item.users.find((user) => user.userId === userId);
-            if (!userOption) return Promise.resolve();
-            return updateUserClientOption(item.id, userId, {
+    try {
+      await Promise.all(
+        localItems.map((item, index) => {
+          const userOption = item.users.find((user) => user.userId === userId);
+          if (!userOption) return Promise.resolve();
+          return updateUserClientOptionMutation.mutateAsync({
+            nodeClientId: item.id,
+            userId: userId,
+            data: {
               order: index,
-            });
-          })
-        );
-        toast("保存成功");
-        onSuccess?.();
-      } catch (error) {
-        toast("保存失败", {
-          description: (error as Error).message,
-        });
-      }
-    });
+            }
+          });
+        })
+      );
+      toast.success("保存成功");
+      router.refresh();
+      onSuccess?.();
+    } catch (error) {
+      toast.error(`保存失败: ${(error as Error).message}`);
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
@@ -100,6 +113,8 @@ export function UserNodeClientOrderForm({ userId, items, nodes, onSuccess }: Use
     const newIndex = localItems.findIndex((item) => item.id === over.id);
     setLocalItems(arrayMove(localItems, oldIndex, newIndex));
   }
+
+  const isPending = updateUserClientOptionMutation.isPending;
 
   return (
     <div className="space-y-4">

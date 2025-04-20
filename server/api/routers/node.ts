@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "@/server/api/trpc";
 import { nodeService } from "@/server/services/node-service";
+import { nodeClientService } from "@/server/services/node-client-service";
 
 // Schema定义
 const nodeSchema = z.object({
@@ -21,6 +22,29 @@ const nodeUpdateSchema = z.object({
 export const nodeRouter = createTRPCRouter({
   getAll: protectedProcedure.query(async () => {
     return await nodeService.getAll();
+  }),
+
+  getAllWithClients: protectedProcedure.query(async () => {
+    const nodes = await nodeService.getAll();
+    const clients = await nodeClientService.getNodeClientsWithUsers();
+
+    // Group clients by node id
+    const clientsByNode = clients.reduce(
+      (acc, client) => {
+        const nodeId = client.nodeId;
+        if (!acc[nodeId]) {
+          acc[nodeId] = [];
+        }
+        acc[nodeId].push(client);
+        return acc;
+      },
+      {} as Record<string, typeof clients>
+    );
+
+    return nodes.map((node) => ({
+      ...node,
+      items: clientsByNode[node.id] || [],
+    }));
   }),
 
   getById: protectedProcedure

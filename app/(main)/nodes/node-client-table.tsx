@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { PlusCircle } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -16,14 +15,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 import { type Node, type NodeClient, type User } from "@/types";
-import { deleteNodeClient } from "./actions";
 import { createColumns } from "./node-client-columns";
 import { NodeClientForm } from "./node-client-form";
-import { BatchImportNodeClientDialog } from "./batch-import-node-client-dialog";
+import { api } from "@/utils/api";
 
-type NodeClientWithUsers = NodeClient & { users: { userId: string; enable: boolean; order: number }[] };
+interface NodeClientWithUsers extends NodeClient {
+  users: { userId: string; enable: boolean; order: number }[];
+}
 
 interface NodeClientTableProps {
   userId?: string;
@@ -34,74 +33,41 @@ interface NodeClientTableProps {
   users: User[];
 }
 
-export function NodeClientTable({ userId, nodeId: _, node, nodes, items, users }: NodeClientTableProps) {
+export function NodeClientTable({ userId, nodeId, node, nodes, items, users }: NodeClientTableProps) {
   const [editingItem, setEditingItem] = useState<NodeClientWithUsers | null>(null);
   const [deletingItem, setDeletingItem] = useState<NodeClientWithUsers | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  
+  // 使用TRPC mutation删除数据
+  const deleteNodeClientMutation = api.nodeClient.delete.useMutation({
+    onSuccess: () => {
+      toast.success("删除成功");
+      setDeletingItem(null);
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
 
   function onDelete(item: NodeClientWithUsers) {
-    startTransition(async () => {
-      try {
-        await deleteNodeClient(item.id);
-        toast("删除成功");
-        setDeletingItem(null);
-      } catch (error) {
-        toast("删除失败", {
-          description: (error as Error).message,
-        });
-      }
-    });
+    deleteNodeClientMutation.mutate(item.id);
   }
 
   const columns = createColumns({
-    nodes,
+    onEdit: (item) => setEditingItem(item),
+    onDelete: (item) => setDeletingItem(item),
     users,
-    onEdit: setEditingItem,
-    onDelete: setDeletingItem,
   });
 
   return (
     <>
-      <div className="py-2">
-        <div className="flex gap-2 mb-2">
-          <Button variant="outline" size="sm" onClick={() => setIsCreating(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            添加客户端
-          </Button>
-          <BatchImportNodeClientDialog
-            userId={userId}
-            node={node}
-            nodes={nodes}
-            users={users}
-          />
-        </div>
+      <DataTable columns={columns} data={items} />
 
-        <DataTable 
-          columns={columns} 
-          data={items} 
-        />
-      </div>
-
-      <PopupSheet
-        open={Boolean(editingItem) || isCreating}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingItem(null);
-            setIsCreating(false);
-          }
-        }}
-        title={editingItem ? "编辑客户端" : "添加客户端"}
-      >
+      <PopupSheet open={Boolean(editingItem)} onOpenChange={(open) => !open && setEditingItem(null)} title="编辑客户端">
         <NodeClientForm
-          userId={userId}
-          nodes={node ? [node] : nodes}
-          users={users}
-          item={editingItem ?? undefined}
-          onSuccess={() => {
-            setEditingItem(null);
-            setIsCreating(false);
-          }}
+          client={editingItem ?? undefined}
+          nodes={nodes}
+          onSuccess={() => setEditingItem(null)}
+          nodeId={nodeId}
         />
       </PopupSheet>
 
@@ -109,7 +75,7 @@ export function NodeClientTable({ userId, nodeId: _, node, nodes, items, users }
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>确定要删除此客户端吗？此操作不可撤销。</AlertDialogDescription>
+            <AlertDialogDescription>确定要删除此客户端吗？此操作将影响所有使用该客户端的用户。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
@@ -119,9 +85,9 @@ export function NodeClientTable({ userId, nodeId: _, node, nodes, items, users }
                   onDelete(deletingItem);
                 }
               }}
-              disabled={isPending}
+              disabled={deleteNodeClientMutation.isPending}
             >
-              {isPending ? "删除中..." : "删除"}
+              {deleteNodeClientMutation.isPending ? "删除中..." : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

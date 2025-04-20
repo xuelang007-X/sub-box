@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -16,9 +16,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { type ClashConfig } from "@/types";
-import { deleteClashConfig } from "./actions";
 import { createColumns } from "./columns";
 import { ClashConfigForm } from "./clash-config-form";
+import { api } from "@/utils/api";
 
 interface ClashConfigTableProps {
   configs: ClashConfig[];
@@ -27,18 +27,20 @@ interface ClashConfigTableProps {
 export function ClashConfigTable({ configs }: ClashConfigTableProps) {
   const [editingItem, setEditingItem] = useState<ClashConfig | null>(null);
   const [deletingItem, setDeletingItem] = useState<ClashConfig | null>(null);
-  const [isPending, startTransition] = useTransition();
+
+  // 使用TRPC mutation删除数据
+  const deleteClashConfigMutation = api.clashConfig.delete.useMutation({
+    onSuccess: () => {
+      toast.success("删除成功");
+      setDeletingItem(null);
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
 
   function onDelete(item: ClashConfig) {
-    startTransition(async () => {
-      try {
-        await deleteClashConfig(item.id);
-        toast("删除成功");
-        setDeletingItem(null);
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-    });
+    deleteClashConfigMutation.mutate(item.id);
   }
 
   const columns = createColumns({
@@ -68,9 +70,9 @@ export function ClashConfigTable({ configs }: ClashConfigTableProps) {
                   onDelete(deletingItem);
                 }
               }}
-              disabled={isPending}
+              disabled={deleteClashConfigMutation.isPending}
             >
-              {isPending ? "删除中..." : "删除"}
+              {deleteClashConfigMutation.isPending ? "删除中..." : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

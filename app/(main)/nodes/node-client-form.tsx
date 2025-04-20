@@ -1,138 +1,82 @@
 "use client";
 
-import { useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { MultiSelect } from "@/components/ui/multi-select";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { type Node, type NodeClient, type User } from "@/types";
-import { createNodeClient, updateNodeClient } from "./actions";
+import { type Node, type NodeClient } from "@/types";
+import { api } from "@/utils/api";
 
 const formSchema = z.object({
-  userIds: z.array(z.string()).min(1, "至少选择一个用户"),
-  nodeId: z.string().min(1, "节点不能为空"),
-  url: z.string().min(1, "URL不能为空"), // 不需要检查 url 是否是有效，因为可能有 vless:// 等格式
-  userOptions: z.array(z.object({
-    userId: z.string(),
-    enable: z.boolean(),
-  })),
+  nodeId: z.string().min(1, "请选择节点"),
+  url: z.string().min(1, "订阅地址不能为空"),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
 interface NodeClientFormProps {
-  userId?: string;
+  client?: NodeClient;
   nodes: Node[];
-  users?: User[];
-  item?: NodeClient & { users: { userId: string; enable: boolean; order: number }[] };
   onSuccess?: () => void;
+  nodeId?: string; 
 }
 
-export function NodeClientForm({ userId, nodes, users, item, onSuccess }: NodeClientFormProps) {
-  const [isPending, startTransition] = useTransition();
+export function NodeClientForm({ client, nodes, onSuccess, nodeId }: NodeClientFormProps) {
   const router = useRouter();
+  
+  // 使用TRPC mutations
+  const createNodeClientMutation = api.nodeClient.create.useMutation({
+    onSuccess: () => {
+      toast.success("创建成功");
+      router.refresh();
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+
+  const updateNodeClientMutation = api.nodeClient.update.useMutation({
+    onSuccess: () => {
+      toast.success("更新成功");
+      router.refresh();
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      userIds: item ? item.users.map(u => u.userId) : userId ? [userId] : [],
-      nodeId: item?.nodeId ?? (nodes.length === 1 ? nodes[0]?.id ?? "" : ""),
-      url: item?.url ?? "",
-      userOptions: item ? item.users : userId ? [{ userId, enable: true }] : [],
+      nodeId: client?.nodeId || nodeId || "",
+      url: client?.url || "",
     },
   });
 
-  // Watch userIds to sync with userOptions
-  const watchedUserIds = form.watch("userIds");
-  useEffect(() => {
-    const currentOptions = form.getValues("userOptions");
-    const newOptions = watchedUserIds.map(userId => {
-      const existing = currentOptions.find(opt => opt.userId === userId);
-      return existing || { userId, enable: true };
-    });
-    form.setValue("userOptions", newOptions);
-  }, [watchedUserIds, form]);
-
-  const selectedNode = nodes.find((n) => n.id === form.watch("nodeId"));
-
-  const replaceHostInUrl = () => {
-    const currentUrl = form.getValues("url");
-    if (!currentUrl) {
-      toast("URL不能为空");
-      return;
-    }
-    if (!selectedNode?.host) {
-      toast("节点主机不能为空");
-      return;
-    }
-
-    const match = currentUrl.match(/@([^:]+):/);
-    if (!match) {
-      toast("URL格式不正确，未找到可替换的主机");
-      return;
-    }
-
-    const newUrl = currentUrl.replace(/@([^:]+):/, `@${selectedNode.host}:`);
-    form.setValue("url", newUrl);
-    toast("主机已替换");
-  };
-
   function onSubmit(data: FormData) {
-    startTransition(async () => {
-      try {
-        const submitData = {
-          nodeId: data.nodeId,
-          url: data.url,
-          userOptions: data.userOptions,
-        };
-
-        if (item) {
-          await updateNodeClient(item.id, submitData);
-        } else {
-          await createNodeClient(submitData);
-        }
-
-        toast("保存成功");
-        router.refresh();
-        onSuccess?.();
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-    });
+    if (client) {
+      updateNodeClientMutation.mutate({
+        id: client.id,
+        data: data,
+      });
+    } else {
+      createNodeClientMutation.mutate(data);
+    }
   }
+
+  const isPending = createNodeClientMutation.isPending || updateNodeClientMutation.isPending;
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        {!userId && users && (
-          <FormField
-            control={form.control}
-            name="userIds"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>用户</FormLabel>
-                <MultiSelect
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  options={users.map((user) => ({
-                    value: user.id,
-                    label: user.name,
-                  }))}
-                  placeholder="选择用户"
-                />
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
         <FormField
           control={form.control}
           name="nodeId"
@@ -162,14 +106,9 @@ export function NodeClientForm({ userId, nodes, users, item, onSuccess }: NodeCl
           name="url"
           render={({ field }) => (
             <FormItem>
-              <div className="flex items-center justify-between">
-                <FormLabel>URL</FormLabel>
-                <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={replaceHostInUrl}>
-                  覆盖主机
-                </Button>
-              </div>
+              <FormLabel>订阅地址</FormLabel>
               <FormControl>
-                <Textarea {...field} rows={6} className="font-mono text-sm" />
+                <Input {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>

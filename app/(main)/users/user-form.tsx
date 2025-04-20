@@ -137,14 +137,14 @@ export function UserForm({ user, subconverters, onSubmitSuccess }: UserFormProps
               <FormLabel>使用的订阅转换器</FormLabel>
               <FormControl>
                 <Select
-                  onValueChange={(value) => field.onChange(value || null)}
-                  value={field.value || ""}
+                  onValueChange={(value) => field.onChange(value === "null" ? null : value)}
+                  value={field.value || "null"}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="选择订阅转换器" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">使用默认转换器</SelectItem>
+                    <SelectItem value="null">使用默认转换器</SelectItem>
                     {subconverters.map((subconverter) => (
                       <SelectItem key={subconverter.id} value={subconverter.id}>
                         {subconverter.url}

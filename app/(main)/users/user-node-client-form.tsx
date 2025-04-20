@@ -1,12 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -14,7 +13,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { type Node, type NodeClient, type User } from "@/types";
-import { createOrUpdateNodeClient } from "../nodes/actions";
+import { api } from "@/utils/api";
 
 const formSchema = z.object({
   userIds: z.array(z.string()).min(1, "至少选择一个用户"),
@@ -37,8 +36,35 @@ interface UserNodeClientFormProps {
 }
 
 export function UserNodeClientForm({ userId, nodes, users, item, onSuccess }: UserNodeClientFormProps) {
-  const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  
+  // 使用TRPC创建和设置节点客户端权限
+  const createNodeClientMutation = api.nodeClient.create.useMutation({
+    onSuccess: () => {
+      // 在onSubmit中处理成功回调
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+  
+  const updateNodeClientMutation = api.nodeClient.update.useMutation({
+    onSuccess: () => {
+      // 在onSubmit中处理成功回调
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+  
+  const setUserClientOptionsMutation = api.nodeClient.setUserClientOptions.useMutation({
+    onSuccess: () => {
+      // 在onSubmit中处理成功回调
+    },
+    onError: (error) => {
+      toast.error(`设置用户权限失败: ${error.message}`);
+    },
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -85,22 +111,50 @@ export function UserNodeClientForm({ userId, nodes, users, item, onSuccess }: Us
     toast("主机已替换");
   };
 
-  function onSubmit(data: FormData) {
-    startTransition(async () => {
-      try {
-        await createOrUpdateNodeClient(data.nodeId, {
-          url: data.url,
-          userOptions: data.userOptions,
+  async function onSubmit(data: FormData) {
+    try {
+      // 创建或更新节点客户端
+      let nodeClientId: string;
+      
+      if (item) {
+        // 更新现有客户端
+        await updateNodeClientMutation.mutateAsync({
+          id: item.id,
+          data: {
+            nodeId: data.nodeId,
+            url: data.url
+          }
         });
-
-        toast("保存成功");
-        router.refresh();
-        onSuccess?.();
-      } catch (error) {
-        toast.error((error as Error).message);
+        nodeClientId = item.id;
+      } else {
+        // 创建新客户端
+        const result = await createNodeClientMutation.mutateAsync({
+          nodeId: data.nodeId,
+          url: data.url
+        });
+        nodeClientId = result.id;
       }
-    });
+      
+      // 设置用户权限
+      await setUserClientOptionsMutation.mutateAsync({
+        nodeClientId: nodeClientId,
+        userIds: data.userOptions.filter(opt => opt.enable).map(opt => opt.userId),
+        defaultOptions: {
+          enable: true
+        }
+      });
+
+      toast.success("保存成功");
+      router.refresh();
+      onSuccess?.();
+    } catch (error) {
+      toast.error(`操作失败: ${(error as Error).message}`);
+    }
   }
+  
+  const isPending = createNodeClientMutation.isPending || 
+                  updateNodeClientMutation.isPending || 
+                  setUserClientOptionsMutation.isPending;
 
   return (
     <Form {...form}>

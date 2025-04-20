@@ -52,4 +52,19 @@ export const subconverterRouter = createTRPCRouter({
       await subconverterService.delete(input);
       return { success: true };
     }),
+
+  // 验证subconverter URL是否有效
+  verifyUrl: protectedProcedure
+    .input(z.string())
+    .mutation(async ({ input }) => {
+      try {
+        const response = await fetch(`${input}/version`);
+        if (!response.ok) {
+          throw new Error("验证失败");
+        }
+        return await response.text();
+      } catch (_error) {
+        throw new Error("验证失败：无法连接到服务器");
+      }
+    }),
 }); 

@@ -1,6 +1,5 @@
 "use client";
 
-import { useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -12,8 +11,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { type Subconverter } from "@/types";
-import { createSubconverter, updateSubconverter, verifySubconverterUrl } from "./actions";
+import { api } from "@/utils/api";
 
+// 确保与后端API schema定义一致
 const formSchema = z.object({
   url: z
     .string()
@@ -21,9 +21,6 @@ const formSchema = z.object({
     .refine((url) => !url.endsWith("/"), "URL 末尾不能有斜杠"),
   options: z
     .string()
-    .default(
-      "insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2FACL4SSR%2FACL4SSR%2Fmaster%2FClash%2Fconfig%2FACL4SSR_Online_Full_NoAuto.ini&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true"
-    )
     .refine((str) => {
       try {
         new URLSearchParams(str);
@@ -43,35 +40,56 @@ interface SubconverterFormProps {
 }
 
 export function SubconverterForm({ subconverter, onSuccess }: SubconverterFormProps) {
-  const [isPending, startTransition] = useTransition();
+  // 使用TRPC mutations
+  const createSubconverterMutation = api.subconverter.create.useMutation({
+    onSuccess: () => {
+      toast.success("创建成功");
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+
+  const updateSubconverterMutation = api.subconverter.update.useMutation({
+    onSuccess: () => {
+      toast.success("更新成功");
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+
+  const verifyUrlMutation = api.subconverter.verifyUrl.useMutation({
+    onSuccess: (data) => {
+      toast.success(`验证成功: ${data}`);
+    },
+    onError: (error) => {
+      toast.error(`验证失败: ${error.message}`);
+    },
+  });
+
+  const defaultOptions = "insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2FACL4SSR%2FACL4SSR%2Fmaster%2FClash%2Fconfig%2FACL4SSR_Online_Full_NoAuto.ini&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true";
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       url: subconverter?.url ?? "",
-      options:
-        subconverter?.options ??
-        "insert=false&config=https%3A%2F%2Fraw.githubusercontent.com%2FACL4SSR%2FACL4SSR%2Fmaster%2FClash%2Fconfig%2FACL4SSR_Online_Full_NoAuto.ini&emoji=true&list=false&xudp=false&udp=false&tfo=false&expand=true&scv=false&fdn=false&new_name=true",
+      options: subconverter?.options ?? defaultOptions,
       isDefault: subconverter?.isDefault ?? false,
     },
   });
 
-  function onSubmit(data: FormData) {
-    startTransition(async () => {
-      try {
-        if (subconverter) {
-          await updateSubconverter(subconverter.id, data);
-        } else {
-          await createSubconverter(data);
-        }
-
-        toast("保存成功");
-
-        onSuccess?.();
-      } catch (error) {
-        toast((error as Error).message);
-      }
-    });
+  function onSubmit(formData: FormData) {
+    if (subconverter) {
+      updateSubconverterMutation.mutate({
+        id: subconverter.id,
+        data: formData,
+      });
+    } else {
+      createSubconverterMutation.mutate(formData);
+    }
   }
 
   async function verifyUrl() {
@@ -82,15 +100,12 @@ export function SubconverterForm({ subconverter, onSuccess }: SubconverterFormPr
     }
 
     const url = form.getValues("url");
-    startTransition(async () => {
-      try {
-        const version = await verifySubconverterUrl(url);
-        toast(`验证成功: ${version}`);
-      } catch (error) {
-        toast((error as Error).message);
-      }
-    });
+    verifyUrlMutation.mutate(url);
   }
+
+  const isPending = createSubconverterMutation.isPending || 
+                  updateSubconverterMutation.isPending || 
+                  verifyUrlMutation.isPending;
 
   return (
     <Form {...form}>
@@ -106,7 +121,7 @@ export function SubconverterForm({ subconverter, onSuccess }: SubconverterFormPr
                   <Input {...field} placeholder="https://example.com" />
                 </FormControl>
                 <Button type="button" variant="outline" onClick={verifyUrl} disabled={isPending}>
-                  {isPending ? "验证中..." : "验证"}
+                  {verifyUrlMutation.isPending ? "验证中..." : "验证"}
                 </Button>
               </div>
               <FormMessage />
@@ -143,7 +158,7 @@ export function SubconverterForm({ subconverter, onSuccess }: SubconverterFormPr
           )}
         />
         <Button type="submit" disabled={isPending}>
-          {isPending ? "保存中..." : "保存"}
+          {createSubconverterMutation.isPending || updateSubconverterMutation.isPending ? "保存中..." : "保存"}
         </Button>
       </form>
     </Form>

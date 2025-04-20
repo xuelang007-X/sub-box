@@ -22,7 +22,11 @@ interface CreateColumnsOptions {
 export function createColumns({ userId, nodes, users, onEdit, onDelete }: CreateColumnsOptions): ColumnDef<NodeClient & { users: { userId: string; enable: boolean; order: number; virtualOrder?: number }[] }>[] {
   return [
     {
-      accessorKey: "users",
+      id: "order",
+      accessorFn: (row) => {
+        const userOption = row.users.find(u => u.userId === userId);
+        return userOption?.virtualOrder ?? 0;
+      },
       header: ({ column }) => <DataTableColumnHeader column={column} title="顺序" />,
       cell: ({ row }) => {
         const userOption = row.original.users.find(u => u.userId === userId);
@@ -57,7 +61,8 @@ export function createColumns({ userId, nodes, users, onEdit, onDelete }: Create
       },
     },
     {
-      accessorKey: "users",
+      id: "usersList",
+      accessorFn: (row) => row.users,
       header: ({ column }) => <DataTableColumnHeader column={column} title="用户" />,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
@@ -86,7 +91,11 @@ export function createColumns({ userId, nodes, users, onEdit, onDelete }: Create
       },
     },
     {
-      accessorKey: "users",
+      id: "status",
+      accessorFn: (row) => {
+        const userOption = row.users.find(u => u.userId === userId);
+        return userOption?.enable;
+      },
       header: ({ column }) => <DataTableColumnHeader column={column} title="状态" />,
       cell: ({ row }) => {
         const userOption = row.original.users.find(u => u.userId === userId);

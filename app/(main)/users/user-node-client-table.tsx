@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 
@@ -18,10 +18,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { type Node as DbNode, type NodeClient, type User } from "@/types";
-import { deleteNodeClient } from "../nodes/actions";
 import { createColumns } from "./user-node-client-columns";
 import { UserNodeClientForm } from "./user-node-client-form";
 import { UserNodeClientOrderForm } from "./user-node-client-order-form";
+import { api } from "@/utils/api";
 
 interface UserNodeClientTableProps {
   userId: string;
@@ -34,20 +34,20 @@ export function UserNodeClientTable({ userId, items, nodes, users }: UserNodeCli
   const [editingItem, setEditingItem] = useState<NodeClient & { users: { userId: string; enable: boolean; order: number }[] } | null>(null);
   const [deletingItem, setDeletingItem] = useState<NodeClient & { users: { userId: string; enable: boolean; order: number }[] } | null>(null);
   const [isEditingOrder, setIsEditingOrder] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  
+  // 使用TRPC删除节点客户端
+  const deleteNodeClientMutation = api.nodeClient.delete.useMutation({
+    onSuccess: () => {
+      toast.success("删除成功");
+      setDeletingItem(null);
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
 
   function onDelete(item: NodeClient & { users: { userId: string; enable: boolean; order: number }[] }) {
-    startTransition(async () => {
-      try {
-        await deleteNodeClient(item.id);
-        toast("删除成功");
-        setDeletingItem(null);
-      } catch (error) {
-        toast("删除失败", {
-          description: (error as Error).message,
-        });
-      }
-    });
+    deleteNodeClientMutation.mutate(item.id);
   }
 
   const columns = createColumns({
@@ -142,9 +142,9 @@ export function UserNodeClientTable({ userId, items, nodes, users }: UserNodeCli
                   onDelete(deletingItem);
                 }
               }}
-              disabled={isPending}
+              disabled={deleteNodeClientMutation.isPending}
             >
-              {isPending ? "删除中..." : "删除"}
+              {deleteNodeClientMutation.isPending ? "删除中..." : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

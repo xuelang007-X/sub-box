@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { DataTable } from "@/components/data-table/data-table";
@@ -16,9 +16,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { type Subconverter } from "@/types";
-import { deleteSubconverter } from "./actions";
 import { createColumns } from "./columns";
 import { SubconverterForm } from "./subconverter-form";
+import { api } from "@/utils/api";
 
 interface SubconverterTableProps {
   subconverters: Subconverter[];
@@ -27,18 +27,20 @@ interface SubconverterTableProps {
 export function SubconverterTable({ subconverters }: SubconverterTableProps) {
   const [editingItem, setEditingItem] = useState<Subconverter | null>(null);
   const [deletingItem, setDeletingItem] = useState<Subconverter | null>(null);
-  const [isPending, startTransition] = useTransition();
+
+  // 使用TRPC mutation删除数据
+  const deleteSubconverterMutation = api.subconverter.delete.useMutation({
+    onSuccess: () => {
+      toast.success("删除成功");
+      setDeletingItem(null);
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
 
   function onDelete(item: Subconverter) {
-    startTransition(async () => {
-      try {
-        await deleteSubconverter(item.id);
-        toast("删除成功");
-        setDeletingItem(null);
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-    });
+    deleteSubconverterMutation.mutate(item.id);
   }
 
   const columns = createColumns({
@@ -73,9 +75,9 @@ export function SubconverterTable({ subconverters }: SubconverterTableProps) {
                   onDelete(deletingItem);
                 }
               }}
-              disabled={isPending}
+              disabled={deleteSubconverterMutation.isPending}
             >
-              {isPending ? "删除中..." : "删除"}
+              {deleteSubconverterMutation.isPending ? "删除中..." : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

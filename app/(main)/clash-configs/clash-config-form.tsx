@@ -1,6 +1,5 @@
 "use client";
 
-import { useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -12,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { type ClashConfig } from "@/types";
-import { createClashConfig, updateClashConfig } from "./actions";
+import { api } from "@/utils/api";
 
 const formSchema = z.object({
   key: z
@@ -23,7 +22,8 @@ const formSchema = z.object({
   name: z.string().min(1, "名称不能为空"),
   globalConfig: z
     .string()
-    .transform((val) => val.trim())
+    .nullable()
+    .transform((val) => val?.trim() ?? null)
     .refine((val) => {
       if (!val) return true;
       try {
@@ -32,20 +32,19 @@ const formSchema = z.object({
       } catch {
         return false;
       }
-    }, "全局配置必须是有效的 YAML 格式")
-    .transform((val) => val || null),
+    }, "全局配置必须是有效的 YAML 格式"),
   rules: z
     .string()
-    .transform((val) => val.trim())
+    .nullable()
+    .transform((val) => val?.trim() ?? null)
     .refine((val) => {
       if (!val) return true;
-      const lines = val.split("\n").filter((line) => line.trim());
+      const lines = val?.split("\n").filter((line) => line.trim()) ?? [];
       return lines.every((line) => {
         const parts = line.split(",");
         return parts.length === 3 && parts.every((part) => part.trim().length > 0);
       });
-    }, "规则格式错误，每行必须是 TYPE,VALUE,PROXY 格式")
-    .transform((val) => val || null),
+    }, "规则格式错误，每行必须是 TYPE,VALUE,PROXY 格式"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -56,7 +55,26 @@ interface ClashConfigFormProps {
 }
 
 export function ClashConfigForm({ config, onSuccess }: ClashConfigFormProps) {
-  const [isPending, startTransition] = useTransition();
+  // 使用TRPC mutations
+  const createClashConfigMutation = api.clashConfig.create.useMutation({
+    onSuccess: () => {
+      toast.success("创建成功");
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+
+  const updateClashConfigMutation = api.clashConfig.update.useMutation({
+    onSuccess: () => {
+      toast.success("更新成功");
+      onSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -69,22 +87,17 @@ export function ClashConfigForm({ config, onSuccess }: ClashConfigFormProps) {
   });
 
   function onSubmit(data: FormData) {
-    startTransition(async () => {
-      try {
-        if (config) {
-          await updateClashConfig(config.id, data);
-        } else {
-          await createClashConfig(data);
-        }
-
-        toast("保存成功");
-
-        onSuccess?.();
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-    });
+    if (config) {
+      updateClashConfigMutation.mutate({
+        id: config.id,
+        data: data,
+      });
+    } else {
+      createClashConfigMutation.mutate(data);
+    }
   }
+
+  const isPending = createClashConfigMutation.isPending || updateClashConfigMutation.isPending;
 
   return (
     <Form {...form}>

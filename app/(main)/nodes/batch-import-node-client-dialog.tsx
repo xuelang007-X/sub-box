@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
 
@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { type Node, type User } from "@/types";
-import { findNodeClientByNodeAndUser, createOrUpdateNodeClient } from "./actions";
+import { api } from "@/utils/api";
 
 interface ImportItem {
   url: string;
@@ -33,7 +33,36 @@ export function BatchImportNodeClientDialog({ userId, node, nodes, users }: Batc
   const [step, setStep] = useState<1 | 2>(1);
   const [urls, setUrls] = useState("");
   const [items, setItems] = useState<ImportItem[]>([]);
-  const [isPending, startTransition] = useTransition();
+  
+  const { data: nodeClients } = api.nodeClient.getNodeClientsWithUsers.useQuery();
+  
+  // 使用TRPC mutations
+  const createNodeClientMutation = api.nodeClient.create.useMutation({
+    onSuccess: () => {
+      // 成功处理在handleImport中
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+  
+  const updateNodeClientMutation = api.nodeClient.update.useMutation({
+    onSuccess: () => {
+      // 成功处理在handleImport中
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+  
+  const setUserClientOptionsMutation = api.nodeClient.setUserClientOptions.useMutation({
+    onSuccess: () => {
+      // 成功处理在handleImport中
+    },
+    onError: (error) => {
+      toast.error(`设置用户选项失败: ${error.message}`);
+    },
+  });
 
   const handleUrlsChange = (value: string) => {
     setUrls(value);
@@ -56,82 +85,112 @@ export function BatchImportNodeClientDialog({ userId, node, nodes, users }: Batc
       return;
     }
 
-    startTransition(async () => {
-      try {
-        // Check existing clients
-        const items = await Promise.all(
-          urlList.map(async (url) => {
-            const defaultUserId = userId ?? "";
-            const existing = defaultUserId ? 
-              await findNodeClientByNodeAndUser(nodeId, defaultUserId) : 
-              null;
-            return {
-              url,
-              userId: defaultUserId,
-              enable: true,
-              mode: existing ? ("update" as const) : ("create" as const),
-            };
-          })
+    try {
+      // 检查已存在的客户端
+      const newItems = urlList.map((url) => {
+        const defaultUserId = userId ?? "";
+        // 找到与当前节点和用户匹配的客户端
+        const existing = nodeClients?.find(client => 
+          client.nodeId === nodeId && 
+          client.users.some(u => u.userId === defaultUserId)
         );
+        
+        return {
+          url,
+          userId: defaultUserId,
+          enable: true,
+          mode: existing ? "update" as const : "create" as const,
+        };
+      });
 
-        setItems(items);
-        setStep(2);
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-    });
+      setItems(newItems);
+      setStep(2);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
   };
 
   const handleBack = () => {
     setStep(1);
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (items.some((item) => !item.userId)) {
       toast.error("请为所有URL选择用户");
       return;
     }
 
-    startTransition(async () => {
-      try {
-        const nodeId = node?.id ?? nodes[0]?.id;
-        if (!nodeId) {
-          throw new Error("未选择节点");
-        }
-
-        // 按URL分组，合并相同URL的用户选项
-        const groupedItems = items.reduce((acc, item) => {
-          if (!acc[item.url]) {
-            acc[item.url] = {
-              url: item.url,
-              userOptions: []
-            };
-          }
-          acc[item.url]!.userOptions.push({
-            userId: item.userId,
-            enable: item.enable
-          });
-          return acc;
-        }, {} as Record<string, {
-          url: string;
-          userOptions: { userId: string; enable: boolean; }[];
-        }>);
-        console.log(groupedItems);
-
-        // 批量导入
-        for (const item of Object.values(groupedItems)) {
-          await createOrUpdateNodeClient(nodeId, item);
-        }
-
-        toast.success("导入成功");
-        setOpen(false);
-        setStep(1);
-        setUrls("");
-        setItems([]);
-      } catch (error) {
-        toast.error((error as Error).message);
+    try {
+      const nodeId = node?.id ?? nodes[0]?.id;
+      if (!nodeId) {
+        throw new Error("未选择节点");
       }
-    });
+
+      // 按URL分组，合并相同URL的用户选项
+      const groupedItems = items.reduce((acc, item) => {
+        if (!acc[item.url]) {
+          acc[item.url] = {
+            url: item.url,
+            userOptions: []
+          };
+        }
+        acc[item.url]!.userOptions.push({
+          userId: item.userId,
+          enable: item.enable
+        });
+        return acc;
+      }, {} as Record<string, {
+        url: string;
+        userOptions: { userId: string; enable: boolean; }[];
+      }>);
+
+      // 批量导入
+      const results = await Promise.all(
+        Object.values(groupedItems).map(async (item) => {
+          // 查找现有客户端
+          const existing = nodeClients?.find(client => 
+            client.nodeId === nodeId && 
+            client.url === item.url
+          );
+          
+          if (existing) {
+            // 更新用户选项
+            await setUserClientOptionsMutation.mutateAsync({
+              nodeClientId: existing.id,
+              userIds: item.userOptions.map(opt => opt.userId),
+              defaultOptions: {
+                enable: true
+              }
+            });
+            return existing;
+          } else {
+            // 创建新客户端
+            const newClient = await createNodeClientMutation.mutateAsync({
+              nodeId,
+              url: item.url
+            });
+            
+            // 设置用户选项
+            await setUserClientOptionsMutation.mutateAsync({
+              nodeClientId: newClient.id,
+              userIds: item.userOptions.map(opt => opt.userId),
+              defaultOptions: {
+                enable: true
+              }
+            });
+            return newClient;
+          }
+        })
+      );
+
+      toast.success("导入成功");
+      setOpen(false);
+      setStep(1);
+      setUrls("");
+      setItems([]);
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
   };
 
   const updateItem = (index: number, data: Partial<ImportItem>) => {
@@ -139,6 +198,8 @@ export function BatchImportNodeClientDialog({ userId, node, nodes, users }: Batc
       prev.map((item, i) => (i === index ? { ...item, ...data } : item))
     );
   };
+  
+  const isPending = createNodeClientMutation.isPending || updateNodeClientMutation.isPending || setUserClientOptionsMutation.isPending;
 
   return (
     <>
@@ -189,13 +250,16 @@ export function BatchImportNodeClientDialog({ userId, node, nodes, users }: Batc
                         <Label>用户</Label>
                         <Select
                           value={item.userId}
-                          onValueChange={async (value) => {
+                          onValueChange={(value) => {
                             const nodeId = node?.id ?? nodes[0]?.id;
                             if (nodeId) {
-                              const existing = await findNodeClientByNodeAndUser(nodeId, value);
+                              const existing = nodeClients?.find(client => 
+                                client.nodeId === nodeId && 
+                                client.users.some(u => u.userId === value)
+                              );
                               updateItem(index, { 
                                 userId: value,
-                                mode: existing ? "update" : "create"
+                                mode: existing ? "update" as const : "create" as const
                               });
                             } else {
                               updateItem(index, { userId: value });

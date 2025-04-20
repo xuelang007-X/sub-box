@@ -1,22 +1,27 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getUsers } from "../users/actions";
-import { getNodes } from "./actions";
+import { HydrateClient } from "@/server/api/trpc-server";
+import { api } from "@/server/api/trpc-server";
 import { CreateNodeDialog } from "./create-node-dialog";
 import { NodeTable } from "./node-table";
 
-export default async function SubscriptionsPage() {
-  const [nodes, users] = await Promise.all([getNodes(), getUsers()]);
+export default async function NodesPage() {
+  const nodes = await api.node.getAllWithClients();
+  const users = await api.user.getAll();
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center space-y-0 pb-4">
         <div className="flex items-center gap-4">
           <CardTitle>节点管理 ({nodes.length})</CardTitle>
-          <CreateNodeDialog />
+          <HydrateClient>
+            <CreateNodeDialog />
+          </HydrateClient>
         </div>
       </CardHeader>
       <CardContent>
-        <NodeTable nodes={nodes} users={users} />
+        <HydrateClient>
+          <NodeTable nodes={nodes} users={users} />
+        </HydrateClient>
       </CardContent>
     </Card>
   );

@@ -19,8 +19,6 @@ import { type Node, type NodeClient, type User, type Subconverter } from "@/type
 import { createColumns } from "./columns";
 import { UserForm } from "./user-form";
 import { UserNodeClientTable } from "./user-node-client-table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CreateUserDialog } from "./create-user-dialog";
 import { api } from "@/utils/api";
 
 interface UserTableProps {
@@ -78,55 +76,48 @@ export function UserTable({ users, subconverters }: UserTableProps) {
   });
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center space-y-0 pb-4">
-        <div className="flex items-center gap-4">
-          <CardTitle>用户管理 ({users.length})</CardTitle>
-          <CreateUserDialog subconverters={subconverters} />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <DataTable
-          columns={columns}
-          data={users}
-          expandedContent={(user) => (
-            <UserNodeClientTable userId={user.id} items={itemsByUser[user.id] || []} nodes={nodes} users={users} />
-          )}
-          expandedTitle={(user) => {
-            const count = itemsByUser[user.id]?.length || 0;
-            return `用户 ${user.name} 的客户端列表 (${count})`;
-          }}
-          enableColumnVisibility
-          enableGlobalSearch
-          getItemCount={(user) => itemsByUser[user.id]?.length || 0}
-        />
+    <>
+      <DataTable
+        columns={columns}
+        data={users}
+        expandedContent={(user) => (
+          <UserNodeClientTable userId={user.id} items={itemsByUser[user.id] || []} nodes={nodes} users={users} />
+        )}
+        expandedTitle={(user) => {
+          const count = itemsByUser[user.id]?.length || 0;
+          return `用户 ${user.name} 的客户端列表 (${count})`;
+        }}
+        enableColumnVisibility
+        enableGlobalSearch
+        getItemCount={(user) => itemsByUser[user.id]?.length || 0}
+        defaultExpanded
+      />
 
-        <PopupSheet open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)} title="编辑用户">
-          <UserForm user={editingUser ?? undefined} subconverters={subconverters} onSubmitSuccess={() => setEditingUser(null)} />
-        </PopupSheet>
+      <PopupSheet open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)} title="编辑用户">
+        <UserForm user={editingUser ?? undefined} subconverters={subconverters} onSubmitSuccess={() => setEditingUser(null)} />
+      </PopupSheet>
 
-        <AlertDialog open={Boolean(deletingUser)} onOpenChange={(open) => !open && setDeletingUser(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>确认删除</AlertDialogTitle>
-              <AlertDialogDescription>确定要删除用户 {deletingUser?.name} 吗？此操作不可撤销。</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (deletingUser) {
-                    onDelete(deletingUser);
-                  }
-                }}
-                disabled={deleteUserMutation.isPending}
-              >
-                {deleteUserMutation.isPending ? "删除中..." : "删除"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </CardContent>
-    </Card>
+      <AlertDialog open={Boolean(deletingUser)} onOpenChange={(open) => !open && setDeletingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>确定要删除用户 {deletingUser?.name} 吗？此操作不可撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deletingUser) {
+                  onDelete(deletingUser);
+                }
+              }}
+              disabled={deleteUserMutation.isPending}
+            >
+              {deleteUserMutation.isPending ? "删除中..." : "删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

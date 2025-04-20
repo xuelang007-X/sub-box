@@ -1,17 +1,17 @@
 "use client";
 
-import { useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import * as z from "zod";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { type Node } from "@/types";
-import { createNode, updateNode } from "./actions";
+import { api } from "@/utils/api";
 
 const formSchema = z.object({
   name: z.string().min(1, "名称不能为空"),
@@ -28,10 +28,35 @@ type FormData = z.infer<typeof formSchema>;
 interface NodeFormProps {
   node?: Node;
   onSuccess?: () => void;
+  onSubmitSuccess?: () => void;
 }
 
-export function NodeForm({ node, onSuccess }: NodeFormProps) {
-  const [isPending, startTransition] = useTransition();
+export function NodeForm({ node, onSuccess, onSubmitSuccess }: NodeFormProps) {
+  const router = useRouter();
+
+  const createNodeMutation = api.node.create.useMutation({
+    onSuccess: () => {
+      toast.success("创建成功");
+      router.refresh();
+      onSuccess?.();
+      onSubmitSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+
+  const updateNodeMutation = api.node.update.useMutation({
+    onSuccess: () => {
+      toast.success("更新成功");
+      router.refresh();
+      onSuccess?.();
+      onSubmitSuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -44,27 +69,23 @@ export function NodeForm({ node, onSuccess }: NodeFormProps) {
   });
 
   function onSubmit(data: FormData) {
-    startTransition(async () => {
-      try {
-        const submitData = {
-          ...data,
-          host: data.host || null,
-          accessUrl: data.accessUrl || null,
-        };
-        if (node) {
-          await updateNode(node.id, submitData);
-        } else {
-          await createNode(submitData);
-        }
-
-        toast("保存成功");
-
-        onSuccess?.();
-      } catch (error) {
-        toast.error((error as Error).message);
-      }
-    });
+    const submitData = {
+      ...data,
+      host: data.host || null,
+      accessUrl: data.accessUrl || null,
+    };
+    
+    if (node) {
+      updateNodeMutation.mutate({
+        id: node.id,
+        data: submitData,
+      });
+    } else {
+      createNodeMutation.mutate(submitData);
+    }
   }
+
+  const isPending = createNodeMutation.isPending || updateNodeMutation.isPending;
 
   return (
     <Form {...form}>
