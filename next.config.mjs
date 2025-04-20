@@ -1,13 +1,4 @@
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-
-initOpenNextCloudflareForDev();
-
 let userConfig = undefined;
-try {
-  userConfig = await import("./v0-user-next.config");
-} catch (e) {
-  // ignore error
-}
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -47,3 +38,7 @@ function mergeConfig(nextConfig, userConfig) {
 }
 
 export default nextConfig;
+
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
+initOpenNextCloudflareForDev();

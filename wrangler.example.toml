@@ -30,3 +30,7 @@ database_id = "6d5afde0-0b33-41bf-959d-0a0086762040" # wrangler d1 info <YOUR_DA
 
 [observability.logs]
 enabled = true
+
+# [[r2_buckets]]
+# binding = "NEXT_INC_CACHE_R2_BUCKET"
+# bucket_name = "prod-sub-box-next-inc-cache"
