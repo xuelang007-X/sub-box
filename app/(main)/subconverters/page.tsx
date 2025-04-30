@@ -13,13 +13,13 @@ export default async function SubconvertersPage() {
         <div className="flex items-center gap-4">
           <CardTitle>订阅转换器 ({subconverters.length})</CardTitle>
           <HydrateClient>
-            <CreateSubconverterDialog />
+          <CreateSubconverterDialog />
           </HydrateClient>
         </div>
       </CardHeader>
       <CardContent>
         <HydrateClient>
-          <SubconverterTable subconverters={subconverters} />
+        <SubconverterTable subconverters={subconverters} />
         </HydrateClient>
       </CardContent>
     </Card>

@@ -35,8 +35,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body className={cn(inter.className, "min-h-screen")}>
         <ThemeProvider attribute="class" defaultTheme={defaultTheme} enableSystem disableTransitionOnChange>
           <TRPCProvider>
-            {children}
-            <Toaster />
+          {children}
+          <Toaster />
           </TRPCProvider>
         </ThemeProvider>
       </body>

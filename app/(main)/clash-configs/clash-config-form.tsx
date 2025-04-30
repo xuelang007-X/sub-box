@@ -87,14 +87,14 @@ export function ClashConfigForm({ config, onSuccess }: ClashConfigFormProps) {
   });
 
   function onSubmit(data: FormData) {
-    if (config) {
+        if (config) {
       updateClashConfigMutation.mutate({
         id: config.id,
         data: data,
       });
-    } else {
+        } else {
       createClashConfigMutation.mutate(data);
-    }
+        }
   }
 
   const isPending = createClashConfigMutation.isPending || updateClashConfigMutation.isPending;

@@ -67,7 +67,7 @@ export function NodeClientForm({ client, nodes, onSuccess, nodeId }: NodeClientF
         id: client.id,
         data: data,
       });
-    } else {
+        } else {
       createNodeClientMutation.mutate(data);
     }
   }

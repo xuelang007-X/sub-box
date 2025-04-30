@@ -118,10 +118,10 @@ export default function ExportPage() {
     try {
       setImporting(true);
       await importMutation.mutateAsync({
-        data: previewData,
-        options: {
-          skipExisting,
-        },
+          data: previewData,
+          options: {
+            skipExisting,
+          },
       });
     } finally {
       setImporting(false);

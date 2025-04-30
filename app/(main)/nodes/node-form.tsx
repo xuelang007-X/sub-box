@@ -69,20 +69,20 @@ export function NodeForm({ node, onSuccess, onSubmitSuccess }: NodeFormProps) {
   });
 
   function onSubmit(data: FormData) {
-    const submitData = {
-      ...data,
-      host: data.host || null,
-      accessUrl: data.accessUrl || null,
-    };
+        const submitData = {
+          ...data,
+          host: data.host || null,
+          accessUrl: data.accessUrl || null,
+        };
     
-    if (node) {
+        if (node) {
       updateNodeMutation.mutate({
         id: node.id,
         data: submitData,
       });
-    } else {
+        } else {
       createNodeMutation.mutate(submitData);
-    }
+        }
   }
 
   const isPending = createNodeMutation.isPending || updateNodeMutation.isPending;

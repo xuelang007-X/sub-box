@@ -83,26 +83,26 @@ export function UserNodeClientOrderForm({ userId, items, nodes, onSuccess }: Use
   );
 
   async function handleSave() {
-    try {
-      await Promise.all(
-        localItems.map((item, index) => {
-          const userOption = item.users.find((user) => user.userId === userId);
-          if (!userOption) return Promise.resolve();
+      try {
+        await Promise.all(
+          localItems.map((item, index) => {
+            const userOption = item.users.find((user) => user.userId === userId);
+            if (!userOption) return Promise.resolve();
           return updateUserClientOptionMutation.mutateAsync({
             nodeClientId: item.id,
             userId: userId,
             data: {
               order: index,
             }
-          });
-        })
-      );
+            });
+          })
+        );
       toast.success("保存成功");
       router.refresh();
-      onSuccess?.();
-    } catch (error) {
+        onSuccess?.();
+      } catch (error) {
       toast.error(`保存失败: ${(error as Error).message}`);
-    }
+      }
   }
 
   function handleDragEnd(event: DragEndEvent) {

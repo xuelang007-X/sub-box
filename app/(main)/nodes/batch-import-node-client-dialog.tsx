@@ -85,29 +85,29 @@ export function BatchImportNodeClientDialog({ userId, node, nodes, users }: Batc
       return;
     }
 
-    try {
+      try {
       // 检查已存在的客户端
       const newItems = urlList.map((url) => {
-        const defaultUserId = userId ?? "";
+            const defaultUserId = userId ?? "";
         // 找到与当前节点和用户匹配的客户端
         const existing = nodeClients?.find(client => 
           client.nodeId === nodeId && 
           client.users.some(u => u.userId === defaultUserId)
         );
         
-        return {
-          url,
-          userId: defaultUserId,
-          enable: true,
+            return {
+              url,
+              userId: defaultUserId,
+              enable: true,
           mode: existing ? "update" as const : "create" as const,
-        };
+            };
       });
 
       setItems(newItems);
-      setStep(2);
-    } catch (error) {
-      toast.error((error as Error).message);
-    }
+        setStep(2);
+      } catch (error) {
+        toast.error((error as Error).message);
+      }
   };
 
   const handleBack = () => {
@@ -120,31 +120,31 @@ export function BatchImportNodeClientDialog({ userId, node, nodes, users }: Batc
       return;
     }
 
-    try {
-      const nodeId = node?.id ?? nodes[0]?.id;
-      if (!nodeId) {
-        throw new Error("未选择节点");
-      }
-
-      // 按URL分组，合并相同URL的用户选项
-      const groupedItems = items.reduce((acc, item) => {
-        if (!acc[item.url]) {
-          acc[item.url] = {
-            url: item.url,
-            userOptions: []
-          };
+      try {
+        const nodeId = node?.id ?? nodes[0]?.id;
+        if (!nodeId) {
+          throw new Error("未选择节点");
         }
-        acc[item.url]!.userOptions.push({
-          userId: item.userId,
-          enable: item.enable
-        });
-        return acc;
-      }, {} as Record<string, {
-        url: string;
-        userOptions: { userId: string; enable: boolean; }[];
-      }>);
 
-      // 批量导入
+        // 按URL分组，合并相同URL的用户选项
+        const groupedItems = items.reduce((acc, item) => {
+          if (!acc[item.url]) {
+            acc[item.url] = {
+              url: item.url,
+              userOptions: []
+            };
+          }
+          acc[item.url]!.userOptions.push({
+            userId: item.userId,
+            enable: item.enable
+          });
+          return acc;
+        }, {} as Record<string, {
+          url: string;
+          userOptions: { userId: string; enable: boolean; }[];
+        }>);
+
+        // 批量导入
       const results = await Promise.all(
         Object.values(groupedItems).map(async (item) => {
           // 查找现有客户端
@@ -183,14 +183,14 @@ export function BatchImportNodeClientDialog({ userId, node, nodes, users }: Batc
         })
       );
 
-      toast.success("导入成功");
-      setOpen(false);
-      setStep(1);
-      setUrls("");
-      setItems([]);
-    } catch (error) {
-      toast.error((error as Error).message);
-    }
+        toast.success("导入成功");
+        setOpen(false);
+        setStep(1);
+        setUrls("");
+        setItems([]);
+      } catch (error) {
+        toast.error((error as Error).message);
+      }
   };
 
   const updateItem = (index: number, data: Partial<ImportItem>) => {

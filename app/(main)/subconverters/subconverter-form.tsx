@@ -82,14 +82,14 @@ export function SubconverterForm({ subconverter, onSuccess }: SubconverterFormPr
   });
 
   function onSubmit(formData: FormData) {
-    if (subconverter) {
+        if (subconverter) {
       updateSubconverterMutation.mutate({
         id: subconverter.id,
         data: formData,
       });
-    } else {
+        } else {
       createSubconverterMutation.mutate(formData);
-    }
+        }
   }
 
   async function verifyUrl() {

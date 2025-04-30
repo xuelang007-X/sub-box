@@ -7,7 +7,7 @@ export async function GET(request: Request, { params }: { params: { key: string 
     const url = new URL(request.url);
     const configKey = url.searchParams.get("config");
     const headers = new Headers(request.headers);
-    
+
     // 创建TRPC上下文和调用器
     const context = await createTRPCContext({ headers });
     const caller = createCaller(context);

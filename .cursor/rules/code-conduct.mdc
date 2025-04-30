@@ -38,3 +38,5 @@ alwaysApply: true
 4. 表单状态管理：使用 React Hook Form 并配合 Zod 进行表单验证，确保类型安全和良好的用户体验。
 
 5. 组件重用：合理抽象和重用组件，如 NodeForm、UserForm 等，减少代码重复。
+
+6. 确保业务逻辑位于 server/api 中。如果不了解是否存在相关 api，先查询。如果不存在，考虑是否应该添加 api。

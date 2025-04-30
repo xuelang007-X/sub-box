@@ -14,13 +14,13 @@ export default async function NodesPage() {
         <div className="flex items-center gap-4">
           <CardTitle>节点管理 ({nodes.length})</CardTitle>
           <HydrateClient>
-            <CreateNodeDialog />
+          <CreateNodeDialog />
           </HydrateClient>
         </div>
       </CardHeader>
       <CardContent>
         <HydrateClient>
-          <NodeTable nodes={nodes} users={users} />
+        <NodeTable nodes={nodes} users={users} />
         </HydrateClient>
       </CardContent>
     </Card>
